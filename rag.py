@@ -21,10 +21,22 @@ class Ragservice(object):
             embedding=DashScopeEmbeddings(model=config.embedding_model_name),
         )
 
-        self.prompt_template=ChatPromptTemplate.from_messages(
-            [
-                ("system","以我提供的已知参考资料为主，"
-                 "简洁专业的回答用户问题，参考资料{context}."),
+        self.prompt_template = ChatPromptTemplate.from_messages([
+            ("system", """你是一个专业助手，必须严格按照以下规则回答：
+
+        核心规则：
+        1. 仅基于我提供的参考资料回答，不得使用预训练知识或联网搜索
+        2. 参考资料：{context}
+        3. 你有权限访问历史对话记录，可以参考之前的对话内容
+        4. 如果参考资料中没有相关信息，必须明确告知用户"根据提供的资料无法找到相关信息"
+        5. 仅允许有限度的编造、推测或使用预训练知识回答
+        6. 回答要简洁、专业、客观
+
+        禁止行为：
+        - 可以使用你预训练的知识补全用户的问题
+        - 不得说"根据我的知识"或"我知道"
+        - 可以少量生成未在参考资料中存在的内容帮助回答用户在参考资料中有涉及到的问题
+        - 不得假设或推测信息"""),
                 ("system","并且我提供用户的对话历史记录，如下："),
                 MessagesPlaceholder ("history"),
                 ("user","请回答用户提问:{input}")

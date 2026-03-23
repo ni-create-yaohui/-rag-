@@ -11,6 +11,34 @@ from langchain_chroma import Chroma
 from langchain_community.embeddings import DashScopeEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+
+def get_all_files_info():
+    """获取向量库中所有文件的信息（文件名和对应的文档数量）"""
+    chroma = Chroma(
+        collection_name=config.collection_name,
+        embedding_function=DashScopeEmbeddings(model="text-embedding-v4"),
+        persist_directory=config.persist_directory,
+    )
+    # 获取所有文档
+    all_docs = chroma.get()
+    if not all_docs['metadatas']:
+        return {}
+
+    # 按文件名统计
+    files_info = {}
+    for metadata in all_docs['metadatas']:
+        source = metadata.get('source', 'unknown')
+        if source not in files_info:
+            files_info[source] = {
+                'count': 0,
+                'create_time': metadata.get('create_time', ''),
+                'operator': metadata.get('operator', '')
+            }
+        files_info[source]['count'] += 1
+
+    return files_info
+
+
 def check_md5(md5_str:str):
     #检查传入的MD5字符串是否已经被处理过了
     #return false（未被处理过），true（被处理过有记录）
@@ -84,4 +112,55 @@ class KnowledgeBaseService(object):
 
         save_md5(md5_hex)
         return "[成功]，内容已经成功载入向量库"
+
+    def delete_by_filename(self, filename: str) -> str:
+        """根据文件名删除向量库中的文档
+
+        Args:
+            filename: 要删除的文件名（对应metadata中的source字段）
+
+        Returns:
+            删除结果信息
+        """
+        # 先检查文件是否存在
+        all_docs = self.chroma.get()
+        if not all_docs['metadatas']:
+            return f"[失败]，向量库为空"
+
+        # 查找匹配的文档数量
+        matched_ids = []
+        for i, metadata in enumerate(all_docs['metadatas']):
+            if metadata.get('source') == filename:
+                matched_ids.append(all_docs['ids'][i])
+
+        if not matched_ids:
+            return f"[失败]，未找到文件 '{filename}' 对应的向量数据"
+
+        # 删除匹配的向量
+        self.chroma.delete(ids=matched_ids)
+
+        return f"[成功]，已删除文件 '{filename}' 的 {len(matched_ids)} 条向量数据"
+
+    def list_files(self) -> dict:
+        """列出向量库中所有文件及其信息
+
+        Returns:
+            文件信息字典 {filename: {'count': 文档数量, 'create_time': 创建时间}}
+        """
+        all_docs = self.chroma.get()
+        if not all_docs['metadatas']:
+            return {}
+
+        files_info = {}
+        for metadata in all_docs['metadatas']:
+            source = metadata.get('source', 'unknown')
+            if source not in files_info:
+                files_info[source] = {
+                    'count': 0,
+                    'create_time': metadata.get('create_time', ''),
+                    'operator': metadata.get('operator', '')
+                }
+            files_info[source]['count'] += 1
+
+        return files_info
 
